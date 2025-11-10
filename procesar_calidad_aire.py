@@ -1,11 +1,12 @@
 
 """
-Script: procesar_calidad_aire.py  (v6: 5 días estrictos + detección por contenido)
+Script: procesar_calidad_aire.py  (v7: filtro PROVINCIA==28 para contaminantes)
 Autor: (ChatGPT)
 
 Resumen:
   - Lee CSVs de contaminantes (sep=';'), agrega a media diaria por contaminante
-    (promediando 24h y entre estaciones), y fusiona múltiples años en UNA columna por contaminante.
+    (promediando 24h y entre estaciones), fusiona múltiples años en UNA columna por contaminante,
+    y **filtra por PROVINCIA==28 (Comunidad de Madrid) si la columna existe**.
   - Imputa huecos por contaminante (interpolación lineal hasta 'limit' días + media de la columna).
   - Calcula media de los **5 días previos estrictos** (rolling(window=5, min_periods=5).mean().shift(1)).
   - Lee Excels de meteorología (detectados por contenido: 'Fecha' + Temp/Humedad Media),
@@ -61,12 +62,19 @@ def read_csv_semicolon(path: Path) -> pd.DataFrame:
 def process_single_pollutant_csv(path: Path) -> pd.Series:
     """
     Procesa un CSV de contaminante -> Serie diaria con nombre = contaminante.
-    - Calcula media por fila (24h) ignorando NaNs
-    - Luego promedia entre estaciones por fecha
+    - Si existe 'PROVINCIA', filtra por 28 (Madrid).
+    - Calcula media por fila (24h) ignorando NaNs y luego media entre estaciones por fecha.
     """
     pollutant = pollutant_from_filename(path)
     df = read_csv_semicolon(path)
     df.columns = [str(c).strip() for c in df.columns]
+
+    # --- Filtro por provincia Madrid (código 28) si la columna existe ---
+    if "PROVINCIA" in df.columns:
+        df["PROVINCIA"] = pd.to_numeric(df["PROVINCIA"], errors="coerce")
+        df = df[df["PROVINCIA"] == 28]
+        if df.empty:
+            raise ValueError(f"{path.name}: sin filas con PROVINCIA==28 (Madrid)")
 
     needed = {"ANNO", "MES", "DIA"}
     if not needed.issubset(set(df.columns)):
@@ -344,7 +352,7 @@ def run(input_dir: str, output_path: str, interpolate_limit: int = 3) -> pd.Data
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Contaminantes (lag 5d estricto) + Meteo (lag 5d estricto) + Ingresos Madrid (CA=13) -> Excel")
+    parser = argparse.ArgumentParser(description="Contaminantes (lag 5d estricto, PROVINCIA=28) + Meteo (lag 5d estricto) + Ingresos Madrid (CA=13) -> Excel")
     parser.add_argument("--input_dir", required=True, help="Directorio con CSVs de contaminantes y Excels (meteo/ingresos).")
     parser.add_argument("--output", required=True, help="Ruta del Excel de salida (.xlsx).")
     parser.add_argument("--limit", type=int, default=3, help="Máximo tamaño de hueco para interpolar por contaminante (por defecto 3).")
