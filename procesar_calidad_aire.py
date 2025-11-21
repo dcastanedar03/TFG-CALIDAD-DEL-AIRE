@@ -70,9 +70,9 @@ def process_single_pollutant_csv(path: Path) -> pd.Series:
     df.columns = [str(c).strip() for c in df.columns]
 
     # --- Filtro por provincia Madrid (código 28) si la columna existe ---
-    if "PROVINCIA" in df.columns:
-        df["PROVINCIA"] = pd.to_numeric(df["PROVINCIA"], errors="coerce")
-        df = df[df["PROVINCIA"] == 28]
+    if column_name in df.columns:
+        df[column_name] = pd.to_numeric(df[column_name], errors="coerce")
+        df = df[df[column_name] == 28]
         if df.empty:
             raise ValueError(f"{path.name}: sin filas con PROVINCIA==28 (Madrid)")
 
